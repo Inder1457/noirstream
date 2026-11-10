@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NoirStream</title>
+<style>
+:root{--bg:#000;--panel:#141414;--line:#2a2a2a;--text:#f2f2f2;--dim:#9a9a9a;--red:#e50914;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html{font-size:clamp(14px,.84vw,34px);background:var(--bg)} /* 1920px TV = ~16px base */
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:0 5vw 6rem;line-height:1.3}
+header{position:sticky;top:0;z-index:5;background:linear-gradient(#000 80%,transparent);padding:2.2rem 0 1.6rem;display:flex;flex-wrap:wrap;gap:1.6rem 2.4rem;align-items:center}
+.logo{font-size:3.2rem;font-weight:800;letter-spacing:.04em;color:var(--red);margin-right:1rem}
+.logo span{color:var(--text);font-weight:300}
+nav{display:flex;flex-wrap:wrap;gap:1rem;flex:1}
+button,a,input{font:inherit;color:inherit}
+.chip,#q{background:var(--panel);border:.2rem solid var(--line);border-radius:.8rem;padding:.9rem 1.8rem;font-size:1.7rem;cursor:pointer;text-decoration:none}
+#q{width:26rem;cursor:text}
+#q::placeholder{color:var(--dim)}
+:focus{outline:.38rem solid #fff;outline-offset:.2rem}
+.chip:focus,#q:focus{background:#fff;color:#000}
+section{margin-top:3rem;scroll-margin-top:9rem}
+h2{font-size:2.4rem;font-weight:700;margin-bottom:1.2rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(22rem,1fr));gap:1.6rem}
+.tile{position:relative;border-radius:1rem;overflow:hidden;background:var(--panel)}
+.open{display:block;min-height:15rem;padding:1.6rem 1.6rem 1.4rem;text-decoration:none;border-radius:1rem;background:linear-gradient(150deg,var(--c),#0a0a0a 85%)}
+.open:focus{transform:scale(1.04);position:relative;z-index:2}
+.mark{font-size:4rem;font-weight:800;line-height:1}
+.name{font-size:2rem;font-weight:700;margin-top:1.8rem}
+.desc{font-size:1.35rem;color:#d4d4d4;margin-top:.4rem}
+.fav{position:absolute;top:.8rem;right:.8rem;z-index:3;width:3.8rem;height:3.8rem;border-radius:50%;border:.15rem solid #555;background:rgba(0,0,0,.65);font-size:2rem;line-height:1;cursor:pointer;color:#bbb}
+.fav[aria-pressed=true]{color:var(--red);border-color:var(--red)}
+.fav:focus{background:#fff;color:#000}
+.fav[aria-pressed=true]:focus{color:var(--red)}
+.empty{color:var(--dim);font-size:1.7rem}
+footer{margin-top:4rem;color:var(--dim);font-size:1.4rem;max-width:90rem}
+@media (max-width:800px){html{font-size:15px}.grid{grid-template-columns:repeat(2,1fr)}#q{width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">NOIR<span>STREAM</span></div>
+  <nav id="nav"></nav>
+  <input id="q" type="search" placeholder="Search services" aria-label="Search services" autocomplete="off" data-f>
+</header>
+<main id="main"></main>
+<footer>NoirStream only links to official, legal free services. All video plays on the provider’s own site or app. Availability varies by country, and some services show ads or need a free account. Remote: arrows to move, OK to open, yellow button to add or remove a favourite, Back to return to the top.</footer>
+
+<script>
+(function(){
+"use strict";
+// ---- Providers: official sites only ----
+var P={
+ lg:{n:"LG Channels",d:"Free live TV and on-demand, built into LG",u:"https://lgchannels.com/",c:"#a50034"},
+ tubi:{n:"Tubi",d:"Free movies and shows with ads",u:"https://tubitv.com/",c:"#6b1fd0"},
+ plex:{n:"Plex",d:"Free movies, shows and live channels",u:"https://watch.plex.tv/",c:"#b57d00"},
+ global:{n:"Global TV",d:"Canadian shows, news and live TV",u:"https://www.globaltv.com/",c:"#b0101f"},
+ yes:{n:"YES TV",d:"Multicultural Canadian programming",u:"https://www.yestv.com/",c:"#0b6b7a"},
+ pluto:{n:"Pluto TV",d:"Hundreds of free live channels",u:"https://pluto.tv/",c:"#2a2d8f"},
+ roku:{n:"The Roku Channel",d:"Free movies and live TV",u:"https://therokuchannel.roku.com/",c:"#5a1f8a"},
+ kanopy:{n:"Kanopy",d:"Free with a library card",u:"https://www.kanopy.com/",c:"#17606b"},
+ plexlive:{n:"Plex Live TV",d:"Free live channels",u:"https://watch.plex.tv/live-tv",c:"#b57d00"},
+ plutolive:{n:"Pluto TV Live",d:"Live channel guide",u:"https://pluto.tv/live-tv",c:"#2a2d8f"},
+ gnews:{n:"Global News",d:"Canadian news, live stream",u:"https://globalnews.ca/live/",c:"#b0101f"},
+ aj:{n:"Al Jazeera",d:"24-hour live news",u:"https://www.aljazeera.com/live",c:"#9a5a00"},
+ dw:{n:"DW News",d:"German public broadcaster, live",u:"https://www.dw.com/en/live-tv/s-100825",c:"#0a4f9c"},
+ f24:{n:"France 24",d:"International news, live in English",u:"https://www.france24.com/en/live",c:"#1b5a9a"},
+ abc:{n:"ABC News Live",d:"US news, live stream",u:"https://abcnews.go.com/Live",c:"#1a3a7a"},
+ sky:{n:"Sky News",d:"UK news, live stream",u:"https://news.sky.com/watch-live",c:"#a01010"},
+ tubidoc:{n:"Tubi Documentaries",d:"Free documentary films",u:"https://tubitv.com/category/documentary",c:"#6b1fd0"},
+ pbs:{n:"PBS Documentaries",d:"Free public-media documentaries",u:"https://www.pbs.org/documentaries/",c:"#1d4f8f"},
+ nasa:{n:"NASA+",d:"Space missions and launches, free",u:"https://plus.nasa.gov/",c:"#a0311f"},
+ dwdoc:{n:"DW Documentaries",d:"Reports and documentaries",u:"https://www.dw.com/en/documentaries-and-reports",c:"#0a4f9c"},
+ pbskids:{n:"PBS Kids",d:"Shows and games for children",u:"https://pbskids.org/",c:"#2b7a2f"},
+ ytkids:{n:"YouTube Kids",d:"Kid-friendly videos",u:"https://www.youtubekids.com/",c:"#a01a1a"},
+ tubikids:{n:"Tubi Kids",d:"Free kids’ movies and shows",u:"https://tubitv.com/category/kids",c:"#6b1fd0"},
+ cbckids:{n:"CBC Kids",d:"Canadian shows and games",u:"https://www.cbc.ca/kidscbc2/",c:"#a01030"},
+ nasakids:{n:"NASA Kids’ Club",d:"Space learning for children",u:"https://www.nasa.gov/learning-resources/for-kids-and-students/",c:"#1a4a8a"}
+};
+var SEC=[
+ ["fav","My Favourites",[]],
+ ["svc","Official Services",["lg","tubi","plex","global","yes"]],
+ ["movies","Free Movies",["tubi","plex","pluto","roku","kanopy"]],
+ ["live","Live TV",["lg","plutolive","plexlive","global","roku"]],
+ ["news","News",["gnews","aj","dw","f24","abc","sky"]],
+ ["docs","Documentaries",["tubidoc","pbs","nasa","dwdoc","kanopy"]],
+ ["kids","Kids",["pbskids","ytkids","tubikids","cbckids","nasakids"]]
+];
+var favs=[];
+try{favs=JSON.parse(localStorage.getItem("noir.favs")||"[]")}catch(e){}
+function save(){try{localStorage.setItem("noir.favs",JSON.stringify(favs))}catch(e){}}
+
+var main=document.getElementById("main"),nav=document.getElementById("nav"),q=document.getElementById("q");
+
+function tile(id,sec){
+ var p=P[id],on=favs.indexOf(id)>-1;
+ return '<div class="tile"><a class="open" data-f data-id="'+id+'" data-sec="'+sec+'" href="'+p.u+'" rel="noopener" style="--c:'+p.c+'">'+
+  '<div class="mark">'+p.n.charAt(0)+'</div><div class="name">'+p.n+'</div><div class="desc">'+p.d+'</div></a>'+
+  '<button class="fav" data-f data-id="'+id+'" data-sec="'+sec+'" aria-pressed="'+on+'" aria-label="'+(on?"Remove ":"Add ")+p.n+(on?" from":" to")+' favourites">'+(on?"♥":"♡")+'</button></div>';
+}
+function render(keep){
+ var term=q.value.trim().toLowerCase(),html="";
+ SEC.forEach(function(s){
+  var ids=s[0]==="fav"?favs.filter(function(i){return P[i]}):s[2];
+  if(term)ids=ids.filter(function(i){return (P[i].n+" "+P[i].d).toLowerCase().indexOf(term)>-1});
+  if(!ids.length){
+   if(s[0]==="fav"&&!term)html+='<section id="fav"><h2>'+s[1]+'</h2><p class="empty">Press the heart on any tile, or the yellow button on your remote, to save it here.</p></section>';
+   return;
+  }
+  html+='<section id="'+s[0]+'"><h2>'+s[1]+'</h2><div class="grid">'+ids.map(function(i){return tile(i,s[0])}).join("")+'</div></section>';
+ });
+ if(!html)html='<p class="empty" style="margin-top:3rem">No matches for “'+q.value.replace(/[<&]/g,"")+'”. Try a shorter word.</p>';
+ main.innerHTML=html;
+ if(keep){
+  var el=main.querySelector('.fav[data-id="'+keep.id+'"][data-sec="'+keep.sec+'"]')||main.querySelector('.fav[data-id="'+keep.id+'"]')||main.querySelector("[data-f]");
+  if(el)el.focus({preventScroll:true});
+ }
+}
+nav.innerHTML=SEC.map(function(s){return '<button class="chip" data-f data-go="'+s[0]+'">'+s[1].replace("My ","")+'</button>'}).join("");
+
+function toggle(id,sec){
+ var i=favs.indexOf(id);
+ if(i>-1)favs.splice(i,1);else favs.push(id);
+ save();render({id:id,sec:sec});
+}
+document.addEventListener("click",function(e){
+ var f=e.target.closest(".fav"),g=e.target.closest("[data-go]");
+ if(f){toggle(f.dataset.id,f.dataset.sec)}
+ else if(g){
+  var s=document.getElementById(g.dataset.go);
+  if(s){s.scrollIntoView();var t=s.querySelector(".open");if(t)t.focus({preventScroll:true})}
+ }
+});
+q.addEventListener("input",function(){render()});
+
+// ---- Remote / arrow-key spatial navigation ----
+function focusables(){return Array.prototype.slice.call(document.querySelectorAll("[data-f]")).filter(function(e){return e.offsetParent!==null})}
+function move(dx,dy){
+ var list=focusables(),cur=document.activeElement;
+ if(list.indexOf(cur)<0){if(list[0])list[0].focus();return}
+ var r=cur.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,best=null,bs=1e12;
+ list.forEach(function(el){
+  if(el===cur)return;
+  var b=el.getBoundingClientRect(),x=b.left+b.width/2-cx,y=b.top+b.height/2-cy;
+  var main_=dx?x*dx:y*dy,side=dx?Math.abs(y):Math.abs(x);
+  if(main_<=4)return;
+  var s=main_+side*2.5;
+  if(s<bs){bs=s;best=el}
+ });
+ if(best){best.focus({preventScroll:true});best.scrollIntoView({block:"center"})}
+}
+document.addEventListener("keydown",function(e){
+ var k=e.keyCode,inInput=document.activeElement===q;
+ if(k===37||k===39){if(inInput&&q.value)return;e.preventDefault();move(k===37?-1:1,0)}
+ else if(k===38||k===40){e.preventDefault();move(0,k===38?-1:1)}
+ else if(k===405||(k===70&&!inInput)){ // yellow button or F
+  var a=document.activeElement;
+  if(a&&a.dataset&&a.dataset.id){e.preventDefault();toggle(a.dataset.id,a.dataset.sec)}
+ }
+ else if(k===461||k===27||k===10009){ // webOS Back / Esc
+  e.preventDefault();
+  if(q.value){q.value="";render()}
+  window.scrollTo(0,0);var c=nav.querySelector("[data-f]");if(c)c.focus();
+ }
+});
+render();
+var first=main.querySelector(".open");if(first)first.focus({preventScroll:true});
+})();
+</script>
+</body>
+</html>
